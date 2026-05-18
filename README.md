@@ -35,3 +35,58 @@ The code was developed and tested with the following environment:
 python==3.7
 pytorch==1.7.1
 cudatoolkit==10.2
+```
+
+A typical Conda environment can be created by:
+
+```bash
+conda create -n smam python=3.7
+conda activate smam
+
+conda install pytorch==1.7.1 torchvision cudatoolkit=10.2 -c pytorch
+```
+
+Other dependencies can be installed according to the actual package requirements of the released code.
+
+## Usage
+
+Please refer to the scripts in this repository for training and inference.
+
+The code is intentionally kept simple, and the running logic can be directly checked from the corresponding Python files.
+
+## Citation
+
+If you find this work useful for your research, please consider citing our paper:
+
+```bibtex
+@article{long2026inverse,
+  title   = {Inverse Laplacian Pyramid For Image Generation With Limited Data},
+  author  = {Long, ZhiHao and Zhai, YiKui and Li, XinRu and Xu, Ying and Zhu, HuFei and Xie, XiaoHua and Chen, C. L. Philip},
+  journal = {IEEE Transactions on Circuits and Systems for Video Technology},
+  year    = {2026},
+  note    = {Accepted}
+}
+```
+
+The BibTeX entry will be updated after the official IEEE publication information, including volume, issue, pages, and DOI, becomes available.
+
+## Publication History
+
+This work has gone through a long submission and revision process:
+
+```text
+2024-08-16 -- 2024-12-01: Submitted to AAAI 2025; rejected.
+2025-01-07 -- 2026-05-14: Submitted to IEEE TCSVT; accepted.
+```
+
+Due to the long review and publication cycle, some related works sharing partially similar ideas or motivations may have appeared during this period. Nevertheless, we hope this paper can still provide useful theoretical and engineering insights for data-efficient image generation, Laplacian-pyramid-inspired generative modeling, and score-based adversarial learning.
+
+## Acknowledgement
+
+We thank the editors and reviewers for their valuable comments and suggestions. We also thank the research community for the continuous development of generative modeling, adversarial learning, and multi-scale image synthesis.
+
+## License
+
+Please refer to the license file in this repository.
+
+The paper is published by IEEE. The use of the manuscript and related materials should follow IEEE copyright policies.
