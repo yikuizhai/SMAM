@@ -284,6 +284,186 @@ class Discriminator(nn.Module):
         return torch.cat(rf_list)
 
 
+
+class Discriminator2(nn.Module):
+    def __init__(self, ndf=64, nc=3, im_size=512, kernel_size=5, num_high=4):
+        super(Discriminator2, self).__init__()
+        self.ndf = ndf
+        self.im_size = im_size
+
+        self.kernel = self.gauss_kernel(kernel_size, nc)
+        self.num_high = num_high
+
+        # 用于正则化的权重
+        self.l2_lambda = 1e-4
+
+        nfc_multi = {4 :16, 8 :16, 16 :8, 32 :4, 64 :2, 128 :1, 256 :0.5, 512 :0.25, 1024 :0.125}
+        nfc = {}
+        for k, v in nfc_multi.items():
+            nfc[k] = int(v*ndf)
+
+        if im_size == 1024:
+            self.down_from_big = nn.Sequential(
+                conv2d(nc, nfc[1024], 4, 2, 1, bias=False),
+                nn.LeakyReLU(0.2, inplace=True),
+                conv2d(nfc[1024], nfc[512], 4, 2, 1, bias=False),
+                batchNorm2d(nfc[512]),
+                nn.LeakyReLU(0.2, inplace=True))
+        elif im_size == 512:
+            self.down_from_big = nn.Sequential(
+                conv2d(nc, nfc[512], 4, 2, 1, bias=False),
+                nn.LeakyReLU(0.2, inplace=True) )
+        elif im_size == 256:
+            self.down_from_big = nn.Sequential(
+                conv2d(nc, nfc[512], 3, 1, 1, bias=False),
+                nn.LeakyReLU(0.2, inplace=True) )
+
+        self.down_4 = DownBlockComp(nfc[512], nfc[256])
+        self.down_8 = DownBlockComp(nfc[256], nfc[128])
+        self.down_16 = DownBlockComp(nfc[128], nfc[64])
+        self.down_32 = DownBlockComp(nfc[64],  nfc[32])
+        self.down_64 = DownBlockComp(nfc[32],  nfc[16])
+
+        self.rf_big = nn.Sequential(
+            conv2d(nfc[16] , nfc[8], 1, 1, 0, bias=False),
+            batchNorm2d(nfc[8]), nn.LeakyReLU(0.2, inplace=True),
+            conv2d(nfc[8], 1, 4, 1, 0, bias=False))
+
+        self.se_2_16 = SEBlock(nfc[512], nfc[64])
+        self.se_4_32 = SEBlock(nfc[256], nfc[32])
+        self.se_8_64 = SEBlock(nfc[128], nfc[16])
+
+        self.down_from_small = nn.Sequential(
+            conv2d(nc, nfc[256], 4, 2, 1, bias=False),
+            nn.LeakyReLU(0.2, inplace=True),
+            DownBlock(nfc[256],  nfc[128]),
+            DownBlock(nfc[128],  nfc[64]),
+            DownBlock(nfc[64],  nfc[32]))
+
+        self.rf_small = conv2d(nfc[32], 1, 4, 1, 0, bias=False)
+
+        self.decoder_big = SimpleDecoder(nfc[16], nc)
+        self.decoder_part = SimpleDecoder(nfc[32], nc)
+        self.decoder_small = SimpleDecoder(nfc[32], nc)
+
+    def downsample(self, x):
+        return x[:, :, ::2, ::2]
+
+    def pyramid_down(self, x):
+        return self.downsample(self.conv_gauss(x, self.kernel))
+
+    def gauss_kernel(self, kernel_size, channels):
+        kernel = cv2.getGaussianKernel(kernel_size, 0).dot(
+            cv2.getGaussianKernel(kernel_size, 0).T)
+        kernel = torch.FloatTensor(kernel).unsqueeze(0).repeat(
+            channels, 1, 1, 1)
+        kernel = torch.nn.Parameter(data=kernel, requires_grad=False)
+        return kernel
+
+    def conv_gauss(self, x, kernel):
+        n_channels, _, kw, kh = kernel.shape
+        kernel_cuda = kernel.to(x.device)
+
+        x = torch.nn.functional.pad(x, (kw // 2, kh // 2, kw // 2, kh // 2),
+                                    mode='reflect')  # replicate    # reflect
+        x = torch.nn.functional.conv2d(x, kernel_cuda, groups=n_channels)
+
+        return x
+
+    def upsample(self, x):
+        up = torch.zeros((x.size(0), x.size(1), x.size(2) * 2, x.size(3) * 2),
+                         device=x.device)
+        up[:, :, ::2, ::2] = x * 4
+
+        return self.conv_gauss(up, self.kernel)
+
+    def pyramid_decom(self, img):
+        # self.kernel = self.kernel.to(img.device)
+        current = img
+        pyr = []
+        subtrahend = []
+        minuends = []
+        minuends.append(current)
+        for _ in range(self.num_high):
+            down = self.pyramid_down(current)
+            minuends.append(down)
+            up = self.upsample(down)
+            diff = current - up
+            pyr.append(diff)
+            subtrahend.append(up)
+            current = down
+        pyr.append(current)
+        return pyr, subtrahend, minuends
+
+    def pyramid_recons(self, pyr):
+        image = pyr[0]
+        for level in pyr[1:]:
+            up = self.upsample(image)
+            image = up + level
+        return image
+
+    def regularization(self):
+    # 正则化项是所有权重参数的平方的和
+        l2_reg = sum(param.pow(2).sum() for param in self.parameters() if param.requires_grad)
+        return self.l2_lambda * l2_reg
+
+    def forward(self, imgs, imgs_ori, label, part=None):
+        # first decompose the real images or generated images
+        pyrs = None
+        if label=='real':
+            pyrs, subtrahends, minuends = self.pyramid_decom(imgs)
+            pyrs_ori, subtrahends_ori, minuends_ori = self.pyramid_decom(imgs_ori)
+        else:
+            minuends = imgs
+        rf_list = []
+        reconstruct_big_img_list = []
+        reconstruct_feat_32_img_list = []
+        feat_2 = self.down_from_big(minuends[0])
+        feat_4 = self.down_4(feat_2)
+        feat_8 = self.down_8(feat_4)
+
+        feat_16 = self.down_16(feat_8)
+        feat_16 = self.se_2_16(feat_2, feat_16)
+
+        feat_32 = self.down_32(feat_16)
+        feat_32 = self.se_4_32(feat_4, feat_32)
+
+        reconstruct_feat_32_img_list.append(feat_32)
+
+        feat_last = self.down_64(feat_32)
+        feat_last = self.se_8_64(feat_8, feat_last)
+
+        reconstruct_big_img_list.append(feat_last)
+
+        rf_0 = self.rf_big(feat_last).view(-1)
+        rf_list.append(rf_0)
+
+        reconstruct_small_img_list = []
+        feat_small = self.down_from_small(minuends[1])
+        reconstruct_small_img_list.append(feat_small)
+        rf_1 = self.rf_small(feat_small).view(-1)
+        rf_list.append(rf_1)
+
+
+        if label=='real':
+            rec_img_big = self.decoder_big(reconstruct_big_img_list[0])
+            rec_img_small = self.decoder_small(reconstruct_small_img_list[0])
+
+            assert part is not None
+            rec_img_part = None
+            if part==0:
+                rec_img_part = self.decoder_part(reconstruct_feat_32_img_list[0][: ,: ,:8 ,:8])
+            if part==1:
+                rec_img_part = self.decoder_part(reconstruct_feat_32_img_list[0][: ,: ,:8 ,8:])
+            if part==2:
+                rec_img_part = self.decoder_part(reconstruct_feat_32_img_list[0][: ,: ,8: ,:8])
+            if part==3:
+                rec_img_part = self.decoder_part(reconstruct_feat_32_img_list[0][: ,: ,8: ,8:])
+
+            return torch.cat(rf_list), [rec_img_big, rec_img_small, rec_img_part], pyrs_ori
+
+        return torch.cat(rf_list)
+
 class Discriminator4(nn.Module):
     def __init__(self, ndf=64, nc=3, im_size=512, kernel_size=5, num_high=4):
         super(Discriminator4, self).__init__()

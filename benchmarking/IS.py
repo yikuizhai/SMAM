@@ -93,7 +93,7 @@ if __name__ == '__main__':
     opt = parser.parse_args()
     output_name = '../train_results/test20240410_latent_adversarial_all/IS.txt'
     f = open(output_name, 'w')
-    for i in range(2,17):
+    for i in range(2,21):
         opt.dataroot = "../train_results/test20240410_latent_adversarial_all/eval_" + str(i * 5000)
 
         dataset = dset.ImageFolder(root=opt.dataroot,
@@ -110,7 +110,7 @@ if __name__ == '__main__':
         print("std:%.10f"%std)
         f.writelines('%s:%d\n' % ("Calculating Inception Score of iteration...",i))
         f.writelines('%s:%.10f\n' % ("Mean IS:", mean ))
-        f.writelines('%s:%.10f\n' % ("Mean IS:", std))
+        f.writelines('%s:%.10f\n' % ("Std IS:", std))
         f.writelines('%s\n' % ("--------------------the is the split line---------------------"))
     f.close()
 

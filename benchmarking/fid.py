@@ -57,16 +57,16 @@ def calc_fid(sample_mean, sample_cov, real_mean, real_cov, eps=1e-6):
 
 
 if __name__ == '__main__':
-    device = 'cuda:3'
+    device = 'cuda:2'
 
     parser = argparse.ArgumentParser()
     # /home/longzhihao/PytorchPro/LAPGAN_Ablation/kernel_size_5/Grumpy_cat/high_num_3/eval.py
     parser.add_argument('--batch', type=int, default=64)
     parser.add_argument('--size', type=int, default=256)
-    parser.add_argument('--path_a', type=str, default='/dssg/home/zn_lzhx/PytorchPro/few-shot-images/AnimalFace-dog')
+    parser.add_argument('--path_a', type=str, default='/dssg/home/zn_lzhx/PytorchPro/few-shot-images/moongate')
     parser.add_argument('--path_b', type=str, default='../train_results/test20240410_latent_adversarial_all')
     parser.add_argument('--iter', type=int, default=2)
-    parser.add_argument('--end', type=int, default=16)
+    parser.add_argument('--end', type=int, default=20)
 
     args = parser.parse_args()
 

@@ -12,7 +12,7 @@ import argparse
 from tqdm import tqdm
 
 # from models import Generator
-from generator import Generator4
+from generator import Generator3
 
 
 def load_params(model, new_param):
@@ -45,23 +45,23 @@ if __name__ == "__main__":
     )
     parser.add_argument('--ckpt', type=str)
     parser.add_argument('--artifacts', type=str, default="./train_results/test20240410_latent_adversarial_all", help='path to artifacts.')
-    parser.add_argument('--cuda', type=int, default=3, help='index of gpu to use')
+    parser.add_argument('--cuda', type=int, default=2, help='index of gpu to use')
     parser.add_argument('--start_iter', type=int, default=2)
-    parser.add_argument('--end_iter', type=int, default=16)
+    parser.add_argument('--end_iter', type=int, default=20)
 
     parser.add_argument('--dist', type=str, default='.')
     parser.add_argument('--size', type=int, default=256)
     parser.add_argument('--batch', default=16, type=int, help='batch size')
     parser.add_argument('--n_sample', type=int, default=2000)
     parser.add_argument('--big', action='store_true')
-    parser.add_argument('--im_size', type=int, default=256)
+    parser.add_argument('--im_size', type=int, default=512)
     parser.set_defaults(big=False)
     args = parser.parse_args()
 
     noise_dim = 256
     device = torch.device('cuda:%d'%(args.cuda))
     
-    net_ig = Generator4(ngf=64, nz=noise_dim, nc=3, im_size=args.im_size)#, big=args.big )
+    net_ig = Generator3(ngf=64, nz=noise_dim, nc=3, im_size=args.im_size)#, big=args.big )
     net_ig.to(device)
 
     for epoch in [5000*i for i in range(args.start_iter, args.end_iter+1)]:

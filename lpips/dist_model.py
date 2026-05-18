@@ -27,7 +27,7 @@ class DistModel(BaseModel):
 
     def initialize(self, model='net-lin', net='alex', colorspace='Lab', pnet_rand=False, pnet_tune=False, model_path=None,
             use_gpu=True, printNet=False, spatial=False, 
-            is_train=False, lr=.0001, beta1=0.5, version='0.1', gpu_ids=[3]):
+            is_train=False, lr=.0001, beta1=0.5, version='0.1', gpu_ids=[2]):
         '''
         INPUTS
             model - ['net-lin'] for linearly calibrated network
@@ -70,7 +70,7 @@ class DistModel(BaseModel):
 
             if(not is_train):
                 print('Loading model from: %s'%model_path)
-                self.net.load_state_dict(torch.load(model_path, **kw), strict=False)
+                self.net.load_state_dict(torch.load(model_path, map_location={'cuda:0': 'cuda:1'}), strict=False)
 
         elif(self.model=='net'): # pretrained network
             self.net = networks.PNetLin(pnet_rand=pnet_rand, pnet_type=net, lpips=False)
